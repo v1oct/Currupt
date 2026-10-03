@@ -1,9 +1,10 @@
 package com.currupt.reflame.ui.component
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -18,12 +19,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.currupt.reflame.Screen
+import com.currupt.reflame.core.auth.AdminRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -36,12 +40,19 @@ fun AppShell(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
+    val adminRepository = remember { AdminRepository() }
+    val isAdmin by produceState(initialValue = false, currentRoute) {
+        value = adminRepository.isCurrentUserManager()
+    }
+
     val topLevelRoutes = listOf(
         Screen.Home.route,
         Screen.Projects.route,
         Screen.Releases.route,
         Screen.About.route,
-        Screen.Admin.route
+        Screen.Admin.route,
+        Screen.Announcements.route,
+        Screen.Development.route
     )
 
     val isTopLevel = currentRoute in topLevelRoutes
@@ -57,6 +68,7 @@ fun AppShell(
             ) {
                 DrawerContent(
                     currentRoute = currentRoute,
+                    isAdmin = isAdmin,
                     onDestinationClick = { route ->
                         scope.launch { drawerState.close() }
                         if (currentRoute != route) {
@@ -65,6 +77,10 @@ fun AppShell(
                                 launchSingleTop = true
                             }
                         }
+                    },
+                    onDiscreetAdminTrigger = {
+                        scope.launch { drawerState.close() }
+                        navController.navigate(Screen.Admin.route)
                     }
                 )
             }
@@ -84,11 +100,11 @@ fun AppShell(
                             .padding(horizontal = 24.dp, vertical = 16.dp)
                     ) {
                         Surface(
+                            onClick = { scope.launch { drawerState.open() } },
                             modifier = Modifier
                                 .size(44.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
-                                .clickable { scope.launch { drawerState.open() } },
+                                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp)),
                             color = Color.White.copy(alpha = 0.04f)
                         ) {
                             Box(
@@ -126,60 +142,127 @@ fun AppShell(
 @Composable
 private fun DrawerContent(
     currentRoute: String?,
-    onDestinationClick: (String) -> Unit
+    isAdmin: Boolean,
+    onDestinationClick: (String) -> Unit,
+    onDiscreetAdminTrigger: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .padding(horizontal = 24.dp)
-            .verticalScroll(rememberScrollState())
-    ) {
-        Spacer(modifier = Modifier.height(64.dp))
-        
-        Text(
-            text = "CURRUPT.",
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontWeight = FontWeight.Black,
-                letterSpacing = 2.sp,
-                color = Color.White
+    var tapCount by remember { mutableIntStateOf(0) }
+    var lastTapTime by remember { mutableLongStateOf(0L) }
+    var showAccessOverlay by remember { mutableStateOf(false) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Spacer(modifier = Modifier.height(64.dp))
+            
+            Text(
+                text = "CURRUPT.",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 2.sp,
+                    color = Color.White
+                ),
+                modifier = Modifier.pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = {
+                            val now = System.currentTimeMillis()
+                            if (now - lastTapTime < 500) {
+                                tapCount++
+                            } else {
+                                tapCount = 1
+                            }
+                            lastTapTime = now
+                            
+                            if (tapCount >= 5) {
+                                tapCount = 0
+                                showAccessOverlay = true
+                            }
+                        }
+                    )
+                }
             )
-        )
-        
-        Spacer(modifier = Modifier.height(48.dp))
-        
-        // Primary Navigation
-        DrawerItem("HOME", Screen.Home.route, Icons.Rounded.Home, currentRoute == Screen.Home.route, onDestinationClick)
-        DrawerItem("CATALOG", Screen.Projects.route, Icons.Rounded.Dashboard, currentRoute == Screen.Projects.route, onDestinationClick)
-        DrawerItem("RELEASES", Screen.Releases.route, Icons.Rounded.NewReleases, currentRoute == Screen.Releases.route, onDestinationClick)
-        DrawerItem("ABOUT", Screen.About.route, Icons.Rounded.Info, currentRoute == Screen.About.route, onDestinationClick)
-        
-        Spacer(modifier = Modifier.height(32.dp))
-        HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
-        Spacer(modifier = Modifier.height(32.dp))
-        
-        // Studio Section
-        Text(
-            text = "STUDIO",
-            style = MaterialTheme.typography.labelLarge.copy(
-                fontWeight = FontWeight.Bold,
-                color = Color.White.copy(alpha = 0.4f),
-                letterSpacing = 1.sp
+            
+            Spacer(modifier = Modifier.height(48.dp))
+            
+            // Primary Navigation
+            DrawerItem("HOME", Screen.Home.route, Icons.Rounded.Home, currentRoute == Screen.Home.route, onDestinationClick)
+            DrawerItem("CATALOG", Screen.Projects.route, Icons.Rounded.Dashboard, currentRoute == Screen.Projects.route, onDestinationClick)
+            DrawerItem("RELEASES", Screen.Releases.route, Icons.Rounded.NewReleases, currentRoute == Screen.Releases.route, onDestinationClick)
+            DrawerItem("ABOUT", Screen.About.route, Icons.Rounded.Info, currentRoute == Screen.About.route, onDestinationClick)
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            // Studio Section
+            Text(
+                text = "STUDIO",
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.4f),
+                    letterSpacing = 1.sp
+                )
             )
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        DrawerItem("Announcements", Screen.Home.route, null, false, onDestinationClick)
-        DrawerItem("Development", Screen.Home.route, null, false, onDestinationClick)
-        DrawerItem("Media", Screen.Home.route, null, false, onDestinationClick)
-        
-        Spacer(modifier = Modifier.height(32.dp))
-        HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
-        Spacer(modifier = Modifier.height(32.dp))
-        
-        // Admin Section
-        DrawerItem("ADMIN", Screen.Admin.route, Icons.Rounded.AdminPanelSettings, currentRoute == Screen.Admin.route, onDestinationClick)
-        
-        Spacer(modifier = Modifier.height(64.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+            DrawerItem("Announcements", Screen.Announcements.route, null, currentRoute == Screen.Announcements.route, onDestinationClick)
+            DrawerItem("Development", Screen.Development.route, null, currentRoute == Screen.Development.route, onDestinationClick)
+            DrawerItem("Media", Screen.Home.route, null, false, onDestinationClick)
+            
+            if (isAdmin) {
+                Spacer(modifier = Modifier.height(32.dp))
+                HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+                Spacer(modifier = Modifier.height(32.dp))
+                
+                // Admin Section
+                DrawerItem("ADMIN", Screen.Admin.route, Icons.Rounded.AdminPanelSettings, currentRoute == Screen.Admin.route, onDestinationClick)
+            }
+            
+            Spacer(modifier = Modifier.height(64.dp))
+        }
+
+        // Hidden Gateway Animation
+        AnimatedVisibility(
+            visible = showAccessOverlay,
+            enter = fadeIn(tween(800)) + scaleIn(initialScale = 0.9f, animationSpec = tween(800)),
+            exit = fadeOut(tween(400)),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center
+            ) {
+                LaunchedEffect(Unit) {
+                    delay(1200)
+                    showAccessOverlay = false
+                    onDiscreetAdminTrigger()
+                }
+                
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "STUDIO ACCESS",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 4.sp,
+                            color = Color.White
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(20.dp)
+                            .height(1.dp)
+                            .background(Color.White.copy(alpha = 0.5f))
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -192,11 +275,11 @@ private fun DrawerItem(
     onClick: (String) -> Unit
 ) {
     Surface(
+        onClick = { onClick(route) },
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .clickable { onClick(route) },
+            .clip(RoundedCornerShape(12.dp)),
         color = if (isSelected) Color.White.copy(alpha = 0.08f) else Color.Transparent
     ) {
         Row(
@@ -260,33 +343,38 @@ fun FloatingBottomNav(navController: NavController) {
                 items.forEach { item ->
                     val isSelected = currentRoute == item.route
                     
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .clickable {
-                                if (!isSelected) {
-                                    navController.navigate(item.route) {
-                                        popUpTo(navController.graph.startDestinationId)
-                                        launchSingleTop = true
-                                    }
+                    Surface(
+                        onClick = {
+                            if (!isSelected) {
+                                navController.navigate(item.route) {
+                                    popUpTo(navController.graph.startDestinationId)
+                                    launchSingleTop = true
                                 }
                             }
+                        },
+                        color = Color.Transparent,
+                        modifier = Modifier
+                            .clip(CircleShape)
                             .padding(8.dp)
                     ) {
-                        Icon(
-                            imageVector = item.icon,
-                            contentDescription = item.label,
-                            tint = if (isSelected) Color.White else Color.White.copy(alpha = 0.4f),
-                            modifier = Modifier.size(24.dp)
-                        )
-                        AnimatedVisibility(visible = isSelected) {
-                            Box(
-                                modifier = Modifier
-                                    .padding(top = 2.dp)
-                                    .size(4.dp)
-                                    .background(Color.White, CircleShape)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = item.label,
+                                tint = if (isSelected) Color.White else Color.White.copy(alpha = 0.4f),
+                                modifier = Modifier.size(24.dp)
                             )
+                            AnimatedVisibility(visible = isSelected) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 2.dp)
+                                        .size(4.dp)
+                                        .background(Color.White, CircleShape)
+                                )
+                            }
                         }
                     }
                 }

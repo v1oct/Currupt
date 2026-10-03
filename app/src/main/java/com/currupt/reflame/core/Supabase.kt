@@ -1,5 +1,6 @@
 package com.currupt.reflame.core
 
+import com.currupt.reflame.BuildConfig
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.postgrest.Postgrest
@@ -8,16 +9,12 @@ import io.github.jan.supabase.storage.Storage
 /**
  * Centralized Supabase client provider for CURRUPT. Studio.
  * 
- * IMPORTANT: Replace the placeholders below with your real Supabase project credentials.
- * Get these from your Supabase Dashboard -> Settings -> API.
+ * Loaded from local.properties via BuildConfig.
  */
 object Supabase {
     
-    // Replace with your project URL (e.g. "https://xyz.supabase.co")
-    const val PROJECT_URL = "YOUR_SUPABASE_URL"
-    
-    // Replace with your public/anon key
-    const val ANON_KEY = "YOUR_SUPABASE_ANON_KEY"
+    val PROJECT_URL = BuildConfig.SUPABASE_URL
+    val ANON_KEY = BuildConfig.SUPABASE_ANON_KEY
 
     val client = createSupabaseClient(
         supabaseUrl = PROJECT_URL,

@@ -1,4 +1,4 @@
-package com.currupt.reflame.feature.releases
+package com.currupt.reflame.feature.home
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,13 +12,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.currupt.reflame.feature.home.ContentCard
 import com.currupt.reflame.ui.motion.MotionSystem
 
 @Composable
-fun ReleasesScreen(
+fun StudioDevelopmentScreen(
     onContentClick: (String) -> Unit,
-    viewModel: ReleasesViewModel = viewModel()
+    viewModel: DevelopmentViewModel = viewModel()
 ) {
     val items by viewModel.items.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -32,7 +31,7 @@ fun ReleasesScreen(
         MotionSystem.EntranceTransition {
             Column(modifier = Modifier.padding(vertical = 8.dp)) {
                 Text(
-                    text = "RELEASES",
+                    text = "DEVELOPMENT",
                     style = MaterialTheme.typography.displaySmall.copy(
                         fontWeight = FontWeight.Black,
                         color = Color.White,
@@ -40,7 +39,7 @@ fun ReleasesScreen(
                     )
                 )
                 Text(
-                    text = "Track the latest studio deployments.",
+                    text = "Studio progress and active projects.",
                     style = MaterialTheme.typography.bodyMedium.copy(
                         color = Color.White.copy(alpha = 0.5f)
                     )
@@ -60,7 +59,7 @@ fun ReleasesScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "No recent releases.",
+                    text = "No active development logs.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = Color.White.copy(alpha = 0.4f)
                 )

@@ -19,30 +19,51 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.currupt.reflame.core.MockData
 import com.currupt.reflame.core.model.*
+import com.currupt.reflame.ui.motion.MotionSystem
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.seconds
 
 @Composable
 fun HomeScreen(
-    onContentClick: (String) -> Unit
+    onContentClick: (String) -> Unit,
+    viewModel: HomeViewModel = viewModel()
 ) {
+    val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
     
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(bottom = 100.dp)
-    ) {
-        // Data-driven sections from Core
-        MockData.sections.forEach { section ->
-            SectionRenderer(
-                section = section,
-                onContentClick = onContentClick
-            )
+    Box(modifier = Modifier.fillMaxSize()) {
+        when (val state = uiState) {
+            is HomeState.Loading -> {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = Color.White)
+            }
+            is HomeState.Error -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(text = "Failed to load home. ${state.message}", color = Color.White.copy(alpha = 0.5f))
+                }
+            }
+            is HomeState.Success -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(scrollState)
+                        .padding(bottom = 100.dp)
+                ) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    state.sections.forEachIndexed { index, sectionData ->
+                        MotionSystem.ScrollReveal(index = index) {
+                            SectionRenderer(
+                                section = sectionData.section,
+                                items = sectionData.items,
+                                onContentClick = onContentClick
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -50,31 +71,20 @@ fun HomeScreen(
 @Composable
 fun SectionRenderer(
     section: StudioSection,
+    items: List<Content>,
     onContentClick: (String) -> Unit
 ) {
-    // Content source logic (simplified for Phase 3)
-    val contentItems = when (section.type) {
-        SectionType.FEATURED -> MockData.contents.filter { it.isFeatured }
-        SectionType.RAIL -> {
-            // Simplified: if title matches or based on metadata query
-            if (section.title.contains("Experiments")) {
-                MockData.contents.filter { it.contentType == ContentType.EXPERIMENT }
-            } else {
-                MockData.contents.filter { it.contentType == ContentType.PROJECT }
-            }
-        }
-        else -> MockData.contents
-    }
+    if (items.isEmpty() && section.type != SectionType.TEXT) return
 
     when (section.type) {
         SectionType.HERO -> {
             HeroCarousel(
-                contents = contentItems.filter { it.isFeatured },
+                contents = items.filter { it.isFeatured },
                 onContentClick = onContentClick
             )
         }
         SectionType.ANNOUNCEMENT -> {
-            MockData.contents.filter { it.contentType == ContentType.ANNOUNCEMENT }.firstOrNull()?.let {
+            items.firstOrNull()?.let {
                 AnnouncementBoard(announcement = it)
                 Spacer(modifier = Modifier.height(24.dp))
             }
@@ -83,7 +93,7 @@ fun SectionRenderer(
             ContentSectionRail(
                 title = section.title,
                 subtitle = section.subtitle,
-                items = contentItems,
+                items = items,
                 onContentClick = onContentClick
             )
             Spacer(modifier = Modifier.height(32.dp))
@@ -102,11 +112,11 @@ fun SectionRenderer(
 @Composable
 fun AnnouncementBoard(announcement: Content) {
     Surface(
+        onClick = { /* Action */ },
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .clickable { /* Action */ },
+            .clip(RoundedCornerShape(16.dp)),
         color = Color.White.copy(alpha = 0.05f),
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
     ) {
@@ -164,8 +174,8 @@ fun HeroCarousel(
             .padding(horizontal = 24.dp)
             .clip(RoundedCornerShape(24.dp))
             .background(Color(0xFF121212))
-            .clickable { onContentClick(contents[currentIndex].slug) }
     ) {
+        // Hero Content with Crossfade
         AnimatedContent(
             targetState = contents[currentIndex],
             transitionSpec = {
@@ -173,7 +183,11 @@ fun HeroCarousel(
             },
             label = "hero_fade"
         ) { item ->
-            Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable { onContentClick(item.slug) }
+            ) {
                 AsyncImage(
                     model = item.bannerUrl.ifBlank { item.coverUrl },
                     contentDescription = null,
@@ -181,6 +195,7 @@ fun HeroCarousel(
                     contentScale = ContentScale.Crop
                 )
                 
+                // Readability Gradient
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -319,8 +334,10 @@ fun ContentSectionRail(
             contentPadding = PaddingValues(horizontal = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            items(items) { item ->
-                ContentCard(content = item, onClick = { onContentClick(item.slug) })
+            itemsIndexed(items) { index, item ->
+                MotionSystem.ScrollReveal(index = index) {
+                    ContentCard(content = item, onClick = { onContentClick(item.slug) })
+                }
             }
         }
     }
@@ -331,58 +348,60 @@ fun ContentCard(
     content: Content,
     onClick: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .width(160.dp)
-            .clickable { onClick() }
+    Surface(
+        onClick = onClick,
+        color = Color.Transparent,
+        modifier = Modifier.width(160.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(0.8f)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFF1A1A1A))
-                .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(16.dp))
-        ) {
-            AsyncImage(
-                model = content.coverUrl,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(0.8f)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xFF1A1A1A))
+                    .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(16.dp))
+            ) {
+                AsyncImage(
+                    model = content.coverUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                
+                // Progress placeholder if appropriate
+                if (content.status == ContentStatus.IN_DEVELOPMENT) {
+                    LinearProgressIndicator(
+                        progress = { 0.5f }, // From metadata later
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(2.dp)
+                            .align(Alignment.BottomCenter),
+                        color = Color.White,
+                        trackColor = Color.Transparent
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Text(
+                text = content.title,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             
-            // Progress placeholder if appropriate
-            if (content.status == ContentStatus.IN_DEVELOPMENT) {
-                LinearProgressIndicator(
-                    progress = { 0.5f }, // From metadata later
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(2.dp)
-                        .align(Alignment.BottomCenter),
-                    color = Color.White,
-                    trackColor = Color.Transparent
+            Text(
+                text = content.contentType.name,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    color = Color.White.copy(alpha = 0.4f)
                 )
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(12.dp))
-        
-        Text(
-            text = content.title,
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            ),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        
-        Text(
-            text = content.contentType.name,
-            style = MaterialTheme.typography.labelSmall.copy(
-                color = Color.White.copy(alpha = 0.4f)
             )
-        )
+        }
     }
 }
 

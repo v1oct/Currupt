@@ -2,6 +2,7 @@ package com.currupt.reflame.core.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
 enum class ContentType {
@@ -67,7 +68,7 @@ data class Content(
     @SerialName("is_featured") val isFeatured: Boolean = false,
     @SerialName("is_published") val isPublished: Boolean = true,
     val tags: List<String> = emptyList(),
-    val metadata: Map<String, String> = emptyMap(),
+    val metadata: JsonObject = JsonObject(emptyMap()),
     val media: List<MediaItem> = emptyList(),
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null
@@ -92,5 +93,5 @@ data class StudioSection(
     val type: SectionType,
     val priority: Int = 0,
     @SerialName("is_visible") val isVisible: Boolean = true,
-    @SerialName("query_config") val queryConfig: Map<String, String> = emptyMap()
+    @SerialName("query_config") val queryConfig: JsonObject = JsonObject(emptyMap())
 )
