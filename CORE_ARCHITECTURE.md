@@ -1,6 +1,6 @@
 # CURRUPT Gaming — Core Architecture Specification
 
-This document details the architecture for **CURRUPT Gaming**, establishing the foundational core package structure, data models, state management, remote configuration layer, Game Registry system, and Tool Registry system.
+This document details the architecture for **CURRUPT Gaming**, establishing the foundational core package structure, data models, state management, remote configuration layer, Game Registry system, Tool Registry system, and Account & Entitlement system.
 
 ---
 
@@ -17,7 +17,10 @@ com.currupt.reflame/
 ├── client/
 │   └── model/        # Client runtime models & flags (ClientConfig, FeatureFlag)
 ├── account/
-│   └── model/        # User entitlement & account models (UserEntitlement)
+│   ├── model/        # User entitlement & account models (Account, AccountStatus, UserEntitlement)
+│   ├── repository/   # Repositories (AccountRepository, LocalAccountRepository)
+│   ├── state/        # Account state (AccountState: Loading, Unauthenticated, Authenticated, Error)
+│   └── AccountManager.kt # Central StateFlow account manager
 ├── admin/
 │   └── model/        # Administrative permission models (AdminPermission)
 ├── remote/
@@ -84,13 +87,14 @@ Role permissions enum for administrative access:
 - `DEVELOPER`
 - `MODERATOR`
 
-### 8. `AppState` (`core/state/AppState.kt`)
-Pure data model representing application state for `StateFlow`:
-- `isLoading`: Global loading state.
-- `clientConfig`: Current `ClientConfig` (defaults to `ClientDefaults.DEFAULT_CLIENT_CONFIG`).
-- `userEntitlement`: Current user's `UserEntitlement`.
-- `activeGame`: Currently selected `Game`.
-- `errorMessage`: Active error message, if any.
+### 8. `Account` (`account/model/Account.kt`)
+Represents the CURRUPT user account.
+- `id`: Stable CURRUPT account ID.
+- `discordId`: Discord user ID (external identity reference).
+- `displayName`: Account display name.
+- `avatarUrl`: Avatar reference URL.
+- `status`: `AccountStatus` (`ACTIVE`, `BANNED`, `SUSPENDED`).
+- `entitlement`: `UserEntitlement` (`FREE`, `PREMIUM`).
 
 ---
 
@@ -146,17 +150,42 @@ ToolManager (feature/tools/ToolManager.kt)
 Future ViewModels / UI
 ```
 
+---
+
+## 6. Account & Identity Architecture
+
+The Account system decouples external identity providers (Discord) from internal CURRUPT account and entitlement management.
+
+```
+Discord Account (External IdP)
+    ↓
+CURRUPT Account (account/model/Account.kt)
+    ↓
+Discord Identity / Profile (discordId, displayName, avatarUrl)
+    ↓
+CURRUPT Entitlement (UserEntitlement: FREE / PREMIUM)
+```
+
 ### Components & Roles
 
-1. **`ToolRepository` (`feature/tools/ToolRepository.kt`)**: Interface defining catalog queries (`getTools()`, `getTool(id)`).
-2. **`LocalToolRepository` (`feature/tools/LocalToolRepository.kt`)**: Catalog implementation containing initial tool definitions (`fps_monitor`, `fps_cap`, `motion_blur`, `black_screen`, `cps_counter`, `audio_boost`, `device_cooler`).
-3. **`ToolRegistry` (`feature/tools/ToolRegistry.kt`)**: Central registry supporting tool registration and lookup by ID.
-4. **`ToolAvailabilityResolver` & `ToolAvailability` (`feature/tools/ToolAvailability.kt`)**: Evaluates tool status (`AVAILABLE`, `DISABLED_GLOBALLY`, `UNAVAILABLE_FOR_GAME`, `REQUIRES_PREMIUM`) using dynamic configuration (`GameProfile`, `UserEntitlement`), without hardcoding game names or UI logic.
-5. **`ToolManager` (`feature/tools/ToolManager.kt`)**: StateFlow manager for available tools, selected tool, availability mappings, loading state, and errors.
+1. **`Account` (`account/model/Account.kt`)**: Core account model storing CURRUPT ID, optional Discord ID, display name, avatar, account status, and entitlement level. Contains no secret credentials.
+2. **`AccountRepository` (`account/repository/AccountRepository.kt`)**: Abstraction interface for current account retrieval and clearing.
+3. **`LocalAccountRepository` (`account/repository/LocalAccountRepository.kt`)**: Local dev/testing implementation returning a safe local developer profile (`discordId = null`). Does not mock or pretend real Discord OAuth has occurred.
+4. **`AccountState` (`account/state/AccountState.kt`)**: Immutable state hierarchy (`Loading`, `Unauthenticated`, `Authenticated(account)`, `Error(message)`).
+5. **`AccountManager` (`account/AccountManager.kt`)**: Central StateFlow-based account manager maintaining state, clearing accounts, and exposing `UserEntitlement`.
+
+### Identity & Security Rules
+
+- **Discord OAuth Planning**: Discord-only authentication is planned as the primary external identity provider after beta.
+- **Client Security Guarantee**: Discord client secrets or confidential tokens MUST NEVER be embedded within or stored inside the Android client APK.
+- **Entitlement Scope**: Premium entitlement is tied directly to the CURRUPT Account, independent of specific APK builds or client installations.
+- **Code Redemption**: Future code redemption mechanisms will attach rewards and entitlements directly to the CURRUPT Account.
+- **Account Moderation**: Future ban or suspension actions (`AccountStatus.BANNED`, `AccountStatus.SUSPENDED`) will be associated with both the CURRUPT account and the linked Discord identity.
+- **Decoupled Feature Logic**: `GameManager` and `ToolManager` MUST NOT couple directly to Discord APIs. They depend strictly on `AccountState` and `UserEntitlement` (e.g. `Account` → `Entitlement` → `ToolAvailabilityResolver`).
 
 ---
 
-## 6. Architectural Rules & Design Constraints
+## 7. Architectural Rules & Design Constraints
 
 1. **Pure Data Models**: Models contain Kotlin data structures only. No Jetpack Compose, UI rendering, Android Context, or Activity references.
 2. **Decoupled Data Layer**: No direct Supabase, HTTP, or database calls inside model classes.
