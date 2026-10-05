@@ -9,5 +9,7 @@ data class GameProfile(
     @SerialName("game_id") val gameId: String,
     @SerialName("enabled_tools") val enabledTools: List<String> = emptyList(),
     @SerialName("configuration_values") val configurationValues: JsonObject = JsonObject(emptyMap()),
-    @SerialName("display_metadata") val displayMetadata: JsonObject = JsonObject(emptyMap())
+    @SerialName("display_metadata") val displayMetadata: JsonObject = JsonObject(emptyMap()),
+    @SerialName("profile_version") val profileVersion: Long = 1L,
+    @SerialName("is_enabled") val isEnabled: Boolean = true
 )

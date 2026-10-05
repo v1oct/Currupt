@@ -24,4 +24,9 @@ class GameRegistry(
     suspend fun getGameById(id: String): Game? {
         return dynamicRegistry[id] ?: repository.getGame(id)
     }
+
+    suspend fun findGameByPackageName(packageName: String): Game? {
+        val games = getRegisteredGames()
+        return games.find { game -> game.packageNames.contains(packageName) }
+    }
 }

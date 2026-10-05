@@ -10,7 +10,9 @@ enum class ToolAvailabilityStatus {
     AVAILABLE,
     DISABLED_GLOBALLY,
     UNAVAILABLE_FOR_GAME,
-    REQUIRES_PREMIUM
+    GAME_DISABLED,
+    REQUIRES_PREMIUM,
+    UNKNOWN_TOOL
 }
 
 @Serializable
@@ -21,26 +23,44 @@ data class ToolAvailability(
 )
 
 object ToolAvailabilityResolver {
+
     fun resolveAvailability(
-        tool: Tool,
+        tool: Tool?,
+        toolId: String,
         gameProfile: GameProfile? = null,
         userEntitlement: UserEntitlement = UserEntitlement.FREE
     ): ToolAvailability {
+        if (tool == null) {
+            return ToolAvailability(
+                toolId = toolId,
+                status = ToolAvailabilityStatus.UNKNOWN_TOOL,
+                reason = "Tool with ID '$toolId' is not registered in ToolRegistry."
+            )
+        }
+
         if (!tool.isEnabled) {
             return ToolAvailability(
                 toolId = tool.id,
                 status = ToolAvailabilityStatus.DISABLED_GLOBALLY,
-                reason = "Tool is globally disabled."
+                reason = "Tool '${tool.displayName}' is globally disabled."
             )
         }
 
         if (gameProfile != null) {
-            val isEnabledForGame = gameProfile.enabledTools.contains(tool.id)
-            if (!isEnabledForGame) {
+            if (!gameProfile.isEnabled) {
+                return ToolAvailability(
+                    toolId = tool.id,
+                    status = ToolAvailabilityStatus.GAME_DISABLED,
+                    reason = "Game profile for '${gameProfile.gameId}' is disabled."
+                )
+            }
+
+            val isToolAssignedToGame = gameProfile.enabledTools.contains(tool.id)
+            if (!isToolAssignedToGame) {
                 return ToolAvailability(
                     toolId = tool.id,
                     status = ToolAvailabilityStatus.UNAVAILABLE_FOR_GAME,
-                    reason = "Tool is not enabled for the selected game."
+                    reason = "Tool '${tool.displayName}' is not assigned to game '${gameProfile.gameId}'."
                 )
             }
         }
@@ -49,13 +69,26 @@ object ToolAvailabilityResolver {
             return ToolAvailability(
                 toolId = tool.id,
                 status = ToolAvailabilityStatus.REQUIRES_PREMIUM,
-                reason = "Tool requires Premium entitlement."
+                reason = "Tool '${tool.displayName}' requires Premium entitlement."
             )
         }
 
         return ToolAvailability(
             toolId = tool.id,
             status = ToolAvailabilityStatus.AVAILABLE
+        )
+    }
+
+    fun resolveAvailability(
+        tool: Tool,
+        gameProfile: GameProfile? = null,
+        userEntitlement: UserEntitlement = UserEntitlement.FREE
+    ): ToolAvailability {
+        return resolveAvailability(
+            tool = tool,
+            toolId = tool.id,
+            gameProfile = gameProfile,
+            userEntitlement = userEntitlement
         )
     }
 }

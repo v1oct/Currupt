@@ -11,7 +11,8 @@ class LocalGameRepository : GameRepository {
             packageNames = listOf("com.mojang.minecraftpe"),
             iconUrl = null,
             brandingUrl = null,
-            isEnabled = true
+            isEnabled = true,
+            isV1Supported = false
         ),
         Game(
             id = "roblox",
@@ -19,7 +20,8 @@ class LocalGameRepository : GameRepository {
             packageNames = listOf("com.roblox.client"),
             iconUrl = null,
             brandingUrl = null,
-            isEnabled = true
+            isEnabled = true,
+            isV1Supported = true
         ),
         Game(
             id = "fc_mobile",
@@ -27,7 +29,8 @@ class LocalGameRepository : GameRepository {
             packageNames = listOf("com.ea.gp.fifamobile"),
             iconUrl = null,
             brandingUrl = null,
-            isEnabled = true
+            isEnabled = true,
+            isV1Supported = false
         )
     )
 

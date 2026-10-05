@@ -10,5 +10,6 @@ data class Game(
     @SerialName("package_names") val packageNames: List<String> = emptyList(),
     @SerialName("icon_url") val iconUrl: String? = null,
     @SerialName("branding_url") val brandingUrl: String? = null,
-    @SerialName("is_enabled") val isEnabled: Boolean = true
+    @SerialName("is_enabled") val isEnabled: Boolean = true,
+    @SerialName("is_v1_supported") val isV1Supported: Boolean = false
 )

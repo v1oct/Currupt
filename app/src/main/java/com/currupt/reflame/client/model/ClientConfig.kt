@@ -27,9 +27,29 @@ data class AnnouncementsConfig(
 
 @Serializable
 data class ClientConfig(
+    val metadata: ConfigMetadata = ConfigMetadata(),
     @SerialName("maintenance_state") val maintenanceState: MaintenanceState = MaintenanceState(),
+    @SerialName("operational_mode_config") val operationalModeConfig: OperationalModeConfig = OperationalModeConfig(),
     @SerialName("current_configuration") val currentConfiguration: JsonObject = JsonObject(emptyMap()),
     @SerialName("feature_flags") val featureFlags: List<FeatureFlag> = emptyList(),
     @SerialName("announcements_config") val announcementsConfig: AnnouncementsConfig = AnnouncementsConfig(),
     @SerialName("branding_assets") val brandingAssets: BrandingAssets = BrandingAssets()
-)
+) {
+    fun getEffectiveOperationalModeConfig(): OperationalModeConfig {
+        if (operationalModeConfig.isEnabled) {
+            return operationalModeConfig
+        }
+        if (maintenanceState.isUnderMaintenance) {
+            return OperationalModeConfig(
+                mode = OperationalMode.MAINTENANCE,
+                isEnabled = true,
+                title = "Maintenance in Progress",
+                message = maintenanceState.message
+            )
+        }
+        return OperationalModeConfig(
+            mode = OperationalMode.NORMAL,
+            isEnabled = true
+        )
+    }
+}

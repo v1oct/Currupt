@@ -20,28 +20,46 @@ class ToolManager(
     ) {
         _state.update { it.copy(isLoading = true, errorMessage = null) }
         try {
-            val tools = registry.getRegisteredTools()
-            val availabilityMap = tools.associate { tool ->
-                tool.id to ToolAvailabilityResolver.resolveAvailability(
+            val registeredTools = registry.getRegisteredTools()
+            val availabilityMap = mutableMapOf<String, ToolAvailability>()
+
+            registeredTools.forEach { tool ->
+                availabilityMap[tool.id] = ToolAvailabilityResolver.resolveAvailability(
                     tool = tool,
                     gameProfile = gameProfile,
                     userEntitlement = userEntitlement
                 )
             }
 
+            gameProfile?.enabledTools?.forEach { toolId ->
+                if (!availabilityMap.containsKey(toolId)) {
+                    val tool = registry.getToolById(toolId)
+                    availabilityMap[toolId] = ToolAvailabilityResolver.resolveAvailability(
+                        tool = tool,
+                        toolId = toolId,
+                        gameProfile = gameProfile,
+                        userEntitlement = userEntitlement
+                    )
+                }
+            }
+
+            val availableTools = registeredTools.filter { tool ->
+                availabilityMap[tool.id]?.status == ToolAvailabilityStatus.AVAILABLE
+            }
+
             _state.update { currentState ->
                 currentState.copy(
                     isLoading = false,
-                    availableTools = tools,
+                    availableTools = availableTools,
                     toolAvailabilityMap = availabilityMap,
-                    selectedTool = currentState.selectedTool ?: tools.firstOrNull()
+                    selectedTool = currentState.selectedTool ?: availableTools.firstOrNull()
                 )
             }
         } catch (e: Throwable) {
             _state.update { currentState ->
                 currentState.copy(
                     isLoading = false,
-                    errorMessage = e.message ?: "Failed to load registered tools"
+                    errorMessage = e.message ?: "Failed to resolve tools for active game profile"
                 )
             }
         }
